@@ -1,12 +1,9 @@
 import streamlit as st
-from pdf2image import convert_from_bytes
-from PIL import Image
+import fitz  # PyMuPDF
 import zipfile
 import io
 
-st.set_page_config(page_title="PDF to JPG Converter", layout="wide")
-
-st.title("📄 PDF to JPG Converter (Unlimited Upload)")
+st.title("PDF to JPG Converter")
 
 uploaded_files = st.file_uploader(
     "Upload PDF files",
@@ -15,26 +12,24 @@ uploaded_files = st.file_uploader(
 )
 
 if uploaded_files:
-    st.success(f"{len(uploaded_files)} file(s) uploaded!")
-
     zip_buffer = io.BytesIO()
+
     with zipfile.ZipFile(zip_buffer, "a", zipfile.ZIP_DEFLATED) as zip_file:
 
         for file in uploaded_files:
-            st.write(f"Processing: {file.name}")
+            pdf = fitz.open(stream=file.read(), filetype="pdf")
 
-            images = convert_from_bytes(file.read())
+            for page_num in range(len(pdf)):
+                page = pdf.load_page(page_num)
+                pix = page.get_pixmap()
 
-            for i, image in enumerate(images):
-                img_byte_arr = io.BytesIO()
-                image.save(img_byte_arr, format='JPEG')
+                img_bytes = pix.tobytes("jpg")
+                file_name = f"{file.name}_page_{page_num+1}.jpg"
 
-                file_name = f"{file.name}_page_{i+1}.jpg"
-                zip_file.writestr(file_name, img_byte_arr.getvalue())
+                zip_file.writestr(file_name, img_bytes)
 
     st.download_button(
-        label="📥 Download All JPG (ZIP)",
-        data=zip_buffer.getvalue(),
-        file_name="converted_images.zip",
-        mime="application/zip"
+        "Download ZIP",
+        zip_buffer.getvalue(),
+        file_name="images.zip"
     )
